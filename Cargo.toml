@@ -1,0 +1,14 @@
+[package]
+name = "stlink"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.71"
+axum = "0.6.18"
+base64 = "0.21.2"
+ring = "0.16.20"
+serde = "1.0.166"
+shuttle-axum = "0.20.0"
+shuttle-runtime = "0.20.0"
+tokio = "1.28.2"

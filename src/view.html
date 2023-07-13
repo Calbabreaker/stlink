@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Temporary Link</title>
+        <link rel="stylesheet" href="style.css" media="all" />
+    </head>
+    <body>
+        <main>
+            <h1>Temporary Link</h1>
+            <form id="decrypt-form" style="display: none">
+                <input type="password" id="password" placeholder="Decryption Password" />
+                <input type="submit" value="Decrypt" class="btn" />
+                <p style="color: #dc2626" id="error"></p>
+            </form>
+            <div id="data-wrapper">
+                <div style="margin-bottom: 0.5rem">
+                    <span id="data" class="code-block">%DATA%</span>
+                </div>
+                <button class="btn" onclick="copyToClipboard()">Copy to clipboard</button>
+            </div>
+        </main>
+
+        <script src="script.js"></script>
+        <script defer>
+            const dataSpan = document.getElementById("data");
+            const dataWrapperElm = document.getElementById("data-wrapper");
+            const decryptForm = document.getElementById("decrypt-form");
+            const errorElm = document.getElementById("error");
+            const rawData = dataSpan.textContent;
+
+            // string in %% below gets string replaced on the server as a boolean
+            if (%ENCRYPTED%) {
+                dataWrapperElm.style.display = "none";
+                decryptForm.style.display = "flex";
+            }
+
+            decryptForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const password = decryptForm.elements["password"].value;
+                const decryptedData = await decryptWithPassword(rawData, password);
+                if (decryptedData === null) {
+                    errorElm.textContent = "Failed to decrypt! Wrong password?";
+                    return;
+                }
+
+                dataWrapperElm.style.display = "block";
+                dataSpan.textContent = decryptedData;
+                decryptForm.style.display = "none";
+            });
+
+            async function copyToClipboard() {
+                await navigator.clipboard.writeText(dataSpan.textContent);
+                alert("Copied!");
+            }
+        </script>
+    </body>
+</html>

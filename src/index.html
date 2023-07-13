@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Temporary Link Generator</title>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="style.css" media="all" />
+    </head>
+    <body>
+        <main>
+            <h1>Temporary Link Generator</h1>
+            <form id="link-form">
+                <input type="text" id="content" placeholder="Content" />
+                <input type="password" id="password" placeholder="Encryption Password" />
+                <input type="submit" value="Create Link" class="btn" />
+            </form>
+            <div>
+                <p>Your generated link: <a id="link-url" target="_blank"></a></p>
+                <p>
+                    Note: The link will be destroyed when you visit it. It will also be
+                    automatically destroyed after 5 minutes.
+                </p>
+                <p>
+                    Encryption password encrypts the content in the browser before being sent to the
+                    server (uses AES-GCM).
+                </p>
+            </div>
+        </main>
+
+        <script src="script.js"></script>
+        <script defer>
+            const linkForm = document.getElementById("link-form");
+            const linkUrl = document.getElementById("link-url");
+
+            linkForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const content = linkForm.elements["content"].value;
+                const password = linkForm.elements["password"].value;
+                const encrypted = Boolean(password);
+
+                if (content.length > 10000) return alert("Content too long.");
+
+                let data = content;
+                if (encrypted) {
+                    if (password.length < 8) {
+                        return alert("Choose a password longer than 8 characters.");
+                    } else if (!window["crypto"] || !window["crypto"]["subtle"]) {
+                        return alert("Your browser does not support the Web Crypto API!");
+                    }
+
+                    data = await encryptWithPassword(content, password);
+                } else {
+                    // prettier-ignore
+                    if (!confirm("It is recommended to set an encryption password so that the content will be secured. Do you want to continue without a password?")) {
+                        return;
+                    }
+                }
+
+                if (content) {
+                    const id = await sendJSON("/", { data, encrypted });
+                    const outUrl = `${location.protocol}//${location.host}/${id}`;
+                    linkUrl.textContent = outUrl;
+                    linkUrl.href = outUrl;
+
+                    linkForm.elements["content"].value = "";
+                    linkForm.elements["password"].value = "";
+                }
+            });
+        </script>
+    </body>
+</html>
