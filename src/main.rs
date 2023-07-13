@@ -28,24 +28,29 @@ type LastMinute = Arc<RwLock<u64>>;
 
 const EXPIRE_TIME: Duration = Duration::from_secs(60 * 5);
 
-macro_rules! route_file {
-    ($file:expr, $content_type:expr) => {
-        || async {
-            // is this a hack?
-            ([(header::CONTENT_TYPE, $content_type)], include_str!($file))
-        }
-    };
-}
-
 #[shuttle_runtime::main]
 async fn axum() -> shuttle_axum::ShuttleAxum {
     let router = Router::new()
         .route("/", get(|| async { Html(include_str!("index.html")) }))
+        // Perhaps we should use static routes?
         .route(
             "/script.js",
-            get(route_file!("script.js", "text/javascript")),
+            get(|| async {
+                (
+                    [(header::CONTENT_TYPE, "text/javascript")],
+                    include_str!("script.js"),
+                )
+            }),
         )
-        .route("/style.css", get(route_file!("style.css", "text/css")))
+        .route(
+            "/style.css",
+            get(|| async {
+                (
+                    [(header::CONTENT_TYPE, "text/css")],
+                    include_str!("style.css"),
+                )
+            }),
+        )
         .route("/", post(create_link))
         .route("/:id", get(get_data_view))
         .layer(Extension(LinkStore::default()))
@@ -83,7 +88,6 @@ async fn create_link(
                 .unwrap()
                 .retain(|_, link| now - link.created_at < EXPIRE_TIME);
             *last_minute = current_minute;
-            println!("Removed some");
         }
     }
 
