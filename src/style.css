@@ -23,9 +23,9 @@ form {
     max-width: 32rem;
     display: flex;
     flex-direction: column;
-    margin-bottom: 2rem;
 }
 
+textarea,
 .btn,
 form input {
     font-size: 1rem;
@@ -34,6 +34,8 @@ form input {
     margin-bottom: 0.5rem;
     border-radius: 0.4rem;
     border: 1px solid grey;
+    width: 100%;
+    resize: vertical;
 }
 
 .btn {

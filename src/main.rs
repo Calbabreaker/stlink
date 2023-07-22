@@ -13,6 +13,7 @@ use sqlx::Executor;
 #[derive(Debug)]
 struct Link {
     data: String,
+    age: Option<sqlx::postgres::types::PgInterval>,
     encrypted: bool,
 }
 
@@ -112,15 +113,22 @@ async fn get_data_view(
 ) -> AppResult<impl IntoResponse> {
     let view_html = include_str!("view.html");
 
-    let result = sqlx::query_as!(Link, "SELECT encrypted,data FROM links WHERE id=$1", id)
-        .fetch_optional(&pool)
-        .await?;
+    let result = sqlx::query_as!(
+        Link,
+        "SELECT NOW() - created_at AS age,encrypted,data FROM links WHERE id=$1",
+        id
+    )
+    .fetch_optional(&pool)
+    .await?;
 
     match result {
         Some(link) => {
+            let age_secs = link.age.unwrap().microseconds / 1000000;
+
             let html = view_html
                 .replace("%DATA%", &link.data)
-                .replace("%ENCRYPTED%", &link.encrypted.to_string());
+                .replace("%ENCRYPTED%", &link.encrypted.to_string())
+                .replace("%AGE%", &age_secs.to_string());
             Ok((StatusCode::OK, Html(html)))
         }
         None => Ok((

@@ -20,6 +20,7 @@
                 <button class="btn" onclick="copyToClipboard()">Copy to clipboard</button>
                 <button class="btn" onclick="destroyLink()">Destroy Link</button>
             </div>
+            <p id="age"></p>
         </main>
 
         <script src="script.js"></script>
@@ -28,6 +29,7 @@
             const dataWrapperElm = document.getElementById("data-wrapper");
             const decryptForm = document.getElementById("decrypt-form");
             const errorElm = document.getElementById("error");
+            const ageElm = document.getElementById("age");
             const rawData = dataSpan.textContent;
 
             // string in %% below gets string replaced on the server as a boolean
@@ -61,6 +63,20 @@
                     window.close();
                 }
             }
+
+            let ageSeconds = %AGE%;
+
+            function showAge() {
+                const minutes = Math.floor(ageSeconds / 60);
+                const minutesStr = minutes > 0 ? `${minutes}m` : "";
+                ageElm.textContent = `Created ${minutesStr} ${ageSeconds % 60}s ago`;
+            }
+
+            showAge();
+            setInterval(() => {
+                ageSeconds++;
+                showAge();
+            }, 1000);
         </script>
     </body>
 </html>
