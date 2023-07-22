@@ -3,7 +3,7 @@ const decoder = new TextDecoder();
 
 // Encrypts a string with a password using AES-GCM
 // Returns a string in the format encrypted_data,salt,iv
-//See: https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto
+// See: https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto
 async function encryptWithPassword(string, password) {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const key = await deriveKey(password, salt);
