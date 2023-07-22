@@ -26,27 +26,12 @@ async fn axum(
         .await
         .map_err(anyhow::Error::new)?;
 
+    let file_router = route_files![("script", "js"), ("style", "css")];
+
     let router = Router::new()
         .route("/", get(|| async { Html(include_str!("index.html")) }))
+        .merge(file_router)
         // Perhaps we should use static routes?
-        .route(
-            "/script.js",
-            get(|| async {
-                (
-                    [(header::CONTENT_TYPE, "text/javascript")],
-                    include_str!("script.js"),
-                )
-            }),
-        )
-        .route(
-            "/style.css",
-            get(|| async {
-                (
-                    [(header::CONTENT_TYPE, "text/css")],
-                    include_str!("style.css"),
-                )
-            }),
-        )
         .route("/", post(create_link))
         .route("/:id", get(get_data_view).delete(delete_link))
         .layer(DefaultBodyLimit::max(15 * 1000)) // 15 kB max request body limit
@@ -163,4 +148,26 @@ where
     fn from(err: E) -> Self {
         Self(err.into())
     }
+}
+
+#[macro_export]
+// Don't look at this
+macro_rules! route_files {
+    ( $( ($file:expr, $ext:expr) ),* ) => {
+        {
+            let mut router = Router::new();
+            $(
+                router = router.route(concat!("/",$file,".",$ext), get(|| async {
+                (
+                    [
+                        (header::CONTENT_TYPE, concat!("text/", $ext)),
+                        (header::CACHE_CONTROL, "public,max-age=31536000,immutable"),
+                    ],
+                    include_str!(concat!($file,".",$ext)),
+                )
+            }));
+            )*
+            router
+        }
+    };
 }
