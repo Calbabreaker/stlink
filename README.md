@@ -6,17 +6,16 @@ Make temporary links for sending stuff.
 
 1. Install postgresql and start service
 
-2. Run schema
+2. Install [shuttle](https://docs.shuttle.rs/introduction/installation)
 
-```sh
-cp src/schema.sql /tmp
-sudo -u postgres psql -d stlink -f /tmp/schema.sql
-```
-
-3. Install [shuttle](https://docs.shuttle.rs/introduction/installation)
-
-4. Run dev server:
+3. Run dev server:
 
 ```sh
 cargo shuttle run
+```
+
+4. Add `.env` file if want live database for compile time checks:
+
+```
+DATABASE_URL=postgres://postgres@localhost/stlink
 ```
