@@ -6,9 +6,10 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.71"
 axum = "0.6.18"
-base64 = "0.21.2"
-ring = "0.16.20"
+nanoid = "0.4.0"
 serde = "1.0.166"
-shuttle-axum = "0.20.0"
-shuttle-runtime = "0.20.0"
+shuttle-axum = "0.21.0"
+shuttle-runtime = "0.21.0"
+shuttle-shared-db = { version = "0.21.0", features = ["postgres"] }
+sqlx = { version = "0.6.3", features = ["runtime-tokio-native-tls", "postgres", "time"] }
 tokio = "1.28.2"

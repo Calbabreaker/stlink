@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS links(
+    id VARCHAR(6) PRIMARY KEY,
+    data TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    encrypted BOOLEAN NOT NULL
+);
+

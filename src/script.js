@@ -13,13 +13,13 @@ async function encryptWithPassword(string, password) {
 
     // Encrypt the string using AES-GCM
     const cipherText = await crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: iv },
+        { name: "AES-GCM", iv },
         key,
         encoder.encode(string)
     );
 
     return [new Uint8Array(cipherText), salt, iv]
-        .map((data) => btoa(String.fromCharCode.apply(null, data)))
+        .map((data) => btoa(String.fromCharCode(...data)))
         .join(",");
 }
 
@@ -51,6 +51,7 @@ async function deriveKey(password, salt) {
 async function decryptWithPassword(rawData, password) {
     try {
         // Create the Uint8Array from the rawData
+        // rawData is in the form of encrypted_data,salt,iv
         const [cipherText, salt, iv] = rawData.split(",").map(
             (section) =>
                 new Uint8Array(
@@ -73,15 +74,20 @@ async function decryptWithPassword(rawData, password) {
     }
 }
 
-async function sendJSON(endpoint, json) {
-    const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(json),
-    });
+async function tryFetch(endpoint, method = "GET", body) {
+    let options = {};
+    if (body) {
+        options = {
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+        };
+    }
 
+    options.method = method;
+
+    const res = await fetch(endpoint, options);
     if (res.ok) {
         return await res.text();
     } else {

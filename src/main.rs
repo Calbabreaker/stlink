@@ -1,35 +1,30 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::time::Duration;
 
 use axum::{
-    extract::DefaultBodyLimit,
-    extract::Path,
+    extract::{DefaultBodyLimit, Path, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
-    Extension, Json, Router,
+    Json, Router,
 };
-use base64::Engine;
-use ring::rand::SystemRandom;
 use serde::{Deserialize, Serialize};
+use sqlx::Executor;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 struct Link {
     data: String,
-    created_at: Duration,
     encrypted: bool,
 }
 
-type LinkStore = Arc<RwLock<HashMap<String, Link>>>;
-type LastMinute = Arc<RwLock<u64>>;
-
-const EXPIRE_TIME: Duration = Duration::from_secs(60 * 5);
-
 #[shuttle_runtime::main]
-async fn axum() -> shuttle_axum::ShuttleAxum {
+async fn axum(
+    #[shuttle_shared_db::Postgres(local_uri = "postgres://postgres:@localhost/stlink")]
+    pool: sqlx::PgPool,
+) -> shuttle_axum::ShuttleAxum {
+    pool.execute(include_str!("schema.sql"))
+        .await
+        .map_err(anyhow::Error::new)?;
+
     let router = Router::new()
         .route("/", get(|| async { Html(include_str!("index.html")) }))
         // Perhaps we should use static routes?
@@ -52,11 +47,21 @@ async fn axum() -> shuttle_axum::ShuttleAxum {
             }),
         )
         .route("/", post(create_link))
-        .route("/:id", get(get_data_view))
-        .layer(Extension(LinkStore::default()))
-        .layer(Extension(SystemRandom::new()))
-        .layer(Extension(LastMinute::default()))
-        .layer(DefaultBodyLimit::max(15 * 1000)); // 15 kB max request body limit
+        .route("/:id", get(get_data_view).delete(delete_link))
+        .layer(DefaultBodyLimit::max(15 * 1000)) // 15 kB max request body limit
+        .with_state(pool.clone());
+
+    // Check the database for expired links every second
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            // Check the db and remove all links that are past expire time
+            sqlx::query!("DELETE FROM links WHERE created_at < (NOW() - INTERVAL '5 MINUTE')")
+                .execute(&pool)
+                .await
+                .ok();
+        }
+    });
 
     Ok(router.into())
 }
@@ -68,62 +73,60 @@ struct CreateLinkBody {
 }
 
 async fn create_link(
-    Extension(store_lock): Extension<LinkStore>,
-    Extension(rand): Extension<SystemRandom>,
-    Extension(last_minute_lock): Extension<LastMinute>,
+    State(pool): State<sqlx::PgPool>,
     Json(body): Json<CreateLinkBody>,
 ) -> AppResult<impl IntoResponse> {
     // Create a random id in base64
-    let random_bytes = ring::rand::generate::<[u8; 4]>(&rand)?.expose();
-    let id = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(random_bytes);
+    let id = nanoid::nanoid!(6);
 
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
-    let current_minute = now.as_secs() / 60;
-
-    // Every minute, check the map and remove all links that are past expire time
-    if let Ok(mut last_minute) = last_minute_lock.try_write() {
-        if current_minute != *last_minute {
-            store_lock
-                .write()
-                .unwrap()
-                .retain(|_, link| now - link.created_at < EXPIRE_TIME);
-            *last_minute = current_minute;
-        }
-    }
-
-    store_lock.write().unwrap().insert(
+    sqlx::query!(
+        "INSERT INTO links(id, data, encrypted) values ($1, $2, $3)",
         id.clone(),
-        Link {
-            encrypted: body.encrypted,
-            data: body.data,
-            created_at: now,
-        },
-    );
+        body.data,
+        body.encrypted
+    )
+    .execute(&pool)
+    .await?;
 
     Ok((StatusCode::OK, id))
 }
 
+async fn delete_link(
+    State(pool): State<sqlx::PgPool>,
+    Path(id): Path<String>,
+) -> AppResult<StatusCode> {
+    let result = sqlx::query!("DELETE FROM links WHERE id=$1", id)
+        .execute(&pool)
+        .await?;
+
+    match result.rows_affected() {
+        0 => Ok(StatusCode::NOT_FOUND),
+        _ => Ok(StatusCode::NO_CONTENT),
+    }
+}
+
 // Get data from the link and deletes it
 async fn get_data_view(
-    Extension(store): Extension<LinkStore>,
+    State(pool): State<sqlx::PgPool>,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> AppResult<impl IntoResponse> {
     let view_html = include_str!("view.html");
 
-    match store.write().unwrap().remove(&id) {
+    let result = sqlx::query_as!(Link, "SELECT encrypted,data FROM links WHERE id=$1", id)
+        .fetch_optional(&pool)
+        .await?;
+
+    match result {
         Some(link) => {
-            let html = view_html.replacen("%DATA%", &link.data, 1);
-            let html = html.replacen(
-                "%ENCRYPTED%",
-                if link.encrypted { "true" } else { "false" },
-                1,
-            );
-            (StatusCode::OK, Html(html))
+            let html = view_html
+                .replace("%DATA%", &link.data)
+                .replace("%ENCRYPTED%", &link.encrypted.to_string());
+            Ok((StatusCode::OK, Html(html)))
         }
-        None => (
+        None => Ok((
             StatusCode::NOT_FOUND,
             Html(include_str!("not-found.html").to_owned()),
-        ),
+        )),
     }
 }
 

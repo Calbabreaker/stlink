@@ -13,11 +13,12 @@
                 <input type="submit" value="Decrypt" class="btn" />
                 <p style="color: #dc2626" id="error"></p>
             </form>
-            <div id="data-wrapper">
+            <div class="container" id="data-wrapper">
                 <div style="margin-bottom: 0.5rem">
                     <span id="data" class="code-block">%DATA%</span>
                 </div>
                 <button class="btn" onclick="copyToClipboard()">Copy to clipboard</button>
+                <button class="btn" onclick="destroyLink()">Destroy Link</button>
             </div>
         </main>
 
@@ -44,7 +45,7 @@
                     return;
                 }
 
-                dataWrapperElm.style.display = "block";
+                dataWrapperElm.style.display = "flex";
                 dataSpan.textContent = decryptedData;
                 decryptForm.style.display = "none";
             });
@@ -52,6 +53,13 @@
             async function copyToClipboard() {
                 await navigator.clipboard.writeText(dataSpan.textContent);
                 alert("Copied!");
+            }
+
+            async function destroyLink() {
+                if (confirm("Are you sure you want to destroy this link?")) {
+                    await tryFetch("", "DELETE");
+                    window.close();
+                }
             }
         </script>
     </body>
