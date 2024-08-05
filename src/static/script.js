@@ -15,7 +15,7 @@ async function encryptWithPassword(string, password) {
     const cipherText = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv },
         key,
-        encoder.encode(string)
+        encoder.encode(string),
     );
 
     return [new Uint8Array(cipherText), salt, iv]
@@ -31,7 +31,7 @@ async function deriveKey(password, salt) {
         encoder.encode(password),
         "PBKDF2",
         false,
-        ["deriveKey"]
+        ["deriveKey"],
     );
 
     return await crypto.subtle.deriveKey(
@@ -44,7 +44,7 @@ async function deriveKey(password, salt) {
         importedKey,
         { name: "AES-GCM", length: 256 },
         false,
-        ["encrypt", "decrypt"]
+        ["encrypt", "decrypt"],
     );
 }
 
@@ -57,8 +57,8 @@ async function decryptWithPassword(rawData, password) {
                 new Uint8Array(
                     atob(section)
                         .split("")
-                        .map((byte) => byte.charCodeAt(0))
-                )
+                        .map((byte) => byte.charCodeAt(0)),
+                ),
         );
 
         // Create the decryption key

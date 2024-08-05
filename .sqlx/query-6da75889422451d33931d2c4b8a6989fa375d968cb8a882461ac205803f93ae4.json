@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT NOW() - created_at AS age,encrypted,data FROM links WHERE id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "age",
+        "type_info": "Interval"
+      },
+      {
+        "ordinal": 1,
+        "name": "encrypted",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "data",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "6da75889422451d33931d2c4b8a6989fa375d968cb8a882461ac205803f93ae4"
+}

@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.71"
-axum = "0.6.18"
-nanoid = "0.4.0"
-serde = "1.0.166"
-shuttle-axum = "0.21.0"
-shuttle-runtime = "0.21.0"
-shuttle-shared-db = { version = "0.21.0", features = ["postgres"] }
-sqlx = { version = "0.6.3", features = ["runtime-tokio-native-tls", "postgres", "offline"] }
-tokio = "1.28.2"
+anyhow = "1"
+axum = "0.7"
+nanoid = "0.4"
+serde = "1"
+shuttle-axum = "0.47"
+shuttle-runtime = "0.47"
+shuttle-shared-db = { version = "0.47", features = ["postgres","sqlx"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres"] }
+tokio = "1"

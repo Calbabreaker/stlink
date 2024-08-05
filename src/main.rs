@@ -26,10 +26,12 @@ async fn axum(
         .await
         .map_err(anyhow::Error::new)?;
 
-    let file_router = route_files![("script", "js"), ("style", "css")];
+    let file_router = Router::new()
+        .route("/script.js", static_route!("script", "js"))
+        .route("/style.css", static_route!("style", "css"))
+        .route("/", static_route!("index", "html"));
 
     let router = Router::new()
-        .route("/", get(|| async { Html(include_str!("index.html")) }))
         .merge(file_router)
         .route("/", post(create_link))
         .route("/:id", get(get_data_view).delete(delete_link))
@@ -80,7 +82,7 @@ async fn delete_link(
     State(pool): State<sqlx::PgPool>,
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
-    let result = sqlx::query!("DELETE FROM links WHERE id=$1", id)
+    let result = sqlx::query!("DELET FROM links WHERE id=$1", id)
         .execute(&pool)
         .await?;
 
@@ -117,7 +119,7 @@ async fn get_data_view(
         }
         None => Ok((
             StatusCode::NOT_FOUND,
-            Html(include_str!("not-found.html").to_owned()),
+            Html(include_str!("static/not-found.html").to_owned()),
         )),
     }
 }
@@ -150,23 +152,16 @@ where
 }
 
 #[macro_export]
-// Don't look at this
-macro_rules! route_files {
-    ( $( ($file:expr, $ext:expr) ),* ) => {
-        {
-            let mut router = Router::new();
-            $(
-                router = router.route(concat!("/",$file,".",$ext), get(|| async {
-                (
-                    [
-                        (header::CONTENT_TYPE, concat!("text/", $ext)),
-                        (header::CACHE_CONTROL, "public,max-age=31536000,immutable"),
-                    ],
-                    include_str!(concat!($file,".",$ext)),
-                )
-            }));
-            )*
-            router
-        }
-    };
+macro_rules! static_route {
+    ( $file:expr, $ext:expr ) => {{
+        get(|| async {
+            (
+                [
+                    (header::CONTENT_TYPE, concat!("text/", $ext)),
+                    (header::CACHE_CONTROL, "public,max-age=31536000,immutable"),
+                ],
+                include_str!(concat!("static/", $file, ".", $ext)),
+            )
+        })
+    }};
 }
