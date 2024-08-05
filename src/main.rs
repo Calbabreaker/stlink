@@ -31,7 +31,6 @@ async fn axum(
     let router = Router::new()
         .route("/", get(|| async { Html(include_str!("index.html")) }))
         .merge(file_router)
-        // Perhaps we should use static routes?
         .route("/", post(create_link))
         .route("/:id", get(get_data_view).delete(delete_link))
         .layer(DefaultBodyLimit::max(15 * 1000)) // 15 kB max request body limit

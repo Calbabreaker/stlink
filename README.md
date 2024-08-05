@@ -1,6 +1,6 @@
-# Send Temporary Link
+# Store Temporary Link
 
-Make temporary links for sending stuff.
+Make temporary links for storing stuff.
 
 ## Running
 
