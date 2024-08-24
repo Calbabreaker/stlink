@@ -82,7 +82,7 @@ async fn delete_link(
     State(pool): State<sqlx::PgPool>,
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
-    let result = sqlx::query!("DELET FROM links WHERE id=$1", id)
+    let result = sqlx::query!("DELETE FROM links WHERE id=$1", id)
         .execute(&pool)
         .await?;
 
