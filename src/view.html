@@ -15,7 +15,7 @@
             </form>
             <div class="container" id="data-wrapper">
                 <div style="margin-bottom: 0.5rem">
-                    <span id="data" class="code-block">%DATA%</span>
+                    <pre id="data" class="code-block">%DATA%</pre>
                 </div>
                 <button class="btn" onclick="copyToClipboard()">Copy to clipboard</button>
                 <button class="btn" onclick="destroyLink()">Destroy Link</button>
@@ -60,7 +60,7 @@
             async function destroyLink() {
                 if (confirm("Are you sure you want to destroy this link?")) {
                     await tryFetch("", "DELETE");
-                    window.close();
+                    location.href = "/";
                 }
             }
 

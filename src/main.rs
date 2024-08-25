@@ -13,7 +13,7 @@ use sqlx::Executor;
 #[derive(Debug)]
 struct Link {
     data: String,
-    age: Option<sqlx::postgres::types::PgInterval>,
+    age: sqlx::postgres::types::PgInterval,
     encrypted: bool,
 }
 
@@ -35,7 +35,7 @@ async fn axum(
         .merge(file_router)
         .route("/", post(create_link))
         .route("/:id", get(get_data_view).delete(delete_link))
-        .layer(DefaultBodyLimit::max(15 * 1000)) // 15 kB max request body limit
+        .layer(DefaultBodyLimit::max(5 * 1024)) // 5 kB max request body limit
         .with_state(pool.clone());
 
     // Check the database for expired links every second
@@ -109,7 +109,7 @@ async fn get_data_view(
 
     match result {
         Some(link) => {
-            let age_secs = link.age.unwrap().microseconds / 1000000;
+            let age_secs = link.age.microseconds / 1000000;
 
             let html = view_html
                 .replace("%DATA%", &link.data)

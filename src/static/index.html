@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
     <head>
         <title>Temporary Link Generator</title>
@@ -22,6 +22,7 @@
                     Encryption password encrypts the content in the browser before being sent to the
                     server (uses AES-GCM).
                 </p>
+                <p id="error"></p>
             </div>
         </main>
 
@@ -29,18 +30,19 @@
         <script defer>
             const linkForm = document.getElementById("link-form");
             const linkUrl = document.getElementById("link-url");
+            const errorElm = document.getElementById("error");
 
             linkForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
                 const content = linkForm.elements["content"].value;
                 const password = linkForm.elements["password"].value;
-                const isEncrypted = Boolean(password);
+                const shouldEncrypt = Boolean(password);
 
                 if (!content) return;
-                if (content.length > 10000) return alert("Content too long.");
+                if (content.length > 4000) return alert("Content too long.");
 
                 let data = content;
-                if (isEncrypted) {
+                if (shouldEncrypt) {
                     if (password.length < 8) {
                         return alert("Choose a password longer than 8 characters.");
                     } else if (!window["crypto"] || !window["crypto"]["subtle"]) {
@@ -55,10 +57,14 @@
                     }
                 }
 
-                const id = await tryFetch("/", "POST", { data, encrypted: isEncrypted });
-                const outUrl = `${location.protocol}//${location.host}/${id}`;
-                linkUrl.textContent = outUrl;
-                linkUrl.href = outUrl;
+                try {
+                    const id = await tryFetch("/", "POST", { data, encrypted: shouldEncrypt });
+                    const outUrl = `${location.protocol}//${location.host}/${id}`;
+                    linkUrl.textContent = outUrl;
+                    linkUrl.href = outUrl;
+                } catch (err) {
+                    error.textContent = err.toString();
+                }
 
                 linkForm.elements["content"].value = "";
                 linkForm.elements["password"].value = "";
