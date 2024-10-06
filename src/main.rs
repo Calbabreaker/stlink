@@ -7,13 +7,46 @@ use axum::{
 };
 use redis::Commands;
 use serde::{Deserialize, Serialize};
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+
+pub struct AxumService(pub axum::Router);
+
+/// This is literaly the same as in shuttle-axum but it doesn call into_make_service_with_connect_info so we do it here
+#[shuttle_runtime::async_trait]
+impl shuttle_runtime::Service for AxumService {
+    async fn bind(mut self, addr: std::net::SocketAddr) -> Result<(), shuttle_runtime::Error> {
+        axum::serve(
+            shuttle_runtime::tokio::net::TcpListener::bind(addr).await?,
+            self.0
+                .into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await?;
+        Ok(())
+    }
+}
 
 #[shuttle_runtime::main]
 async fn axum(
     #[shuttle_runtime::Secrets] secrets: shuttle_runtime::SecretStore,
-) -> shuttle_axum::ShuttleAxum {
+) -> Result<AxumService, shuttle_runtime::Error> {
     let redis_url = secrets.get("REDIS_URL").expect("REDIS_URL was not set");
     let client = redis::Client::open(redis_url).map_err(anyhow::Error::new)?;
+
+    // Set up rate limiting
+    let governor_conf = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(10) // replenish every interval
+            .burst_size(6)
+            .finish()
+            .unwrap(),
+    );
+
+    let governor_limiter = governor_conf.limiter().clone();
+    // a separate background task to clean up
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        governor_limiter.retain_recent();
+    });
 
     let file_router = Router::new()
         .route("/script.js", static_route!("script", "js"))
@@ -25,9 +58,12 @@ async fn axum(
         .route("/", post(create_link))
         .route("/:id", get(get_data_view).delete(delete_link))
         .layer(DefaultBodyLimit::max(5 * 1024)) // 5 kB max request body limit
+        .layer(GovernorLayer {
+            config: governor_conf,
+        })
         .with_state(client);
 
-    Ok(router.into())
+    Ok(AxumService(router))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

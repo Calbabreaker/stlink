@@ -8,6 +8,6 @@ anyhow = "1"
 axum = "0.7"
 nanoid = "0.4"
 serde = "1"
-shuttle-axum = "0.47"
-redis = { version = "0.23.0", features = ["tls-native-tls"] }
+redis = { version = "0.23", features = ["tls-native-tls"] }
 shuttle-runtime = "0.47"
+tower_governor = "0.4"
