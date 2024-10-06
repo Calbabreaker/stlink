@@ -7,7 +7,7 @@ use axum::{
 };
 use redis::Commands;
 use serde::{Deserialize, Serialize};
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::governor::GovernorConfigBuilder;
 
 pub struct AxumService(pub axum::Router);
 
@@ -50,10 +50,12 @@ async fn axum(
 
     let api_router = Router::new()
         .route("/", post(create_link))
-        .route("/:id", get(get_data_view).delete(delete_link))
-        .layer(GovernorLayer {
-            config: governor_conf,
-        });
+        .route("/:id", get(get_data_view).delete(delete_link));
+    // Shuttle seems to run through a docker container so the peer address received here is from
+    // that meaning this effectely rate limits globally idk how to fix
+    // .layer(GovernorLayer {
+    //     config: governor_conf,
+    // });
 
     let router = Router::new()
         .route("/script.js", static_route!("script", "js"))
