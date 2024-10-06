@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
     http::{header, StatusCode},
@@ -7,24 +5,15 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use redis::Commands;
 use serde::{Deserialize, Serialize};
-use sqlx::Executor;
-
-#[derive(Debug)]
-struct Link {
-    data: String,
-    age: sqlx::postgres::types::PgInterval,
-    encrypted: bool,
-}
 
 #[shuttle_runtime::main]
 async fn axum(
-    #[shuttle_shared_db::Postgres(local_uri = "postgres://postgres:@localhost/stlink")]
-    pool: sqlx::PgPool,
+    #[shuttle_runtime::Secrets] secrets: shuttle_runtime::SecretStore,
 ) -> shuttle_axum::ShuttleAxum {
-    pool.execute(include_str!("schema.sql"))
-        .await
-        .map_err(anyhow::Error::new)?;
+    let redis_url = secrets.get("REDIS_URL").expect("REDIS_URL was not set");
+    let client = redis::Client::open(redis_url).map_err(anyhow::Error::new)?;
 
     let file_router = Router::new()
         .route("/script.js", static_route!("script", "js"))
@@ -36,19 +25,7 @@ async fn axum(
         .route("/", post(create_link))
         .route("/:id", get(get_data_view).delete(delete_link))
         .layer(DefaultBodyLimit::max(5 * 1024)) // 5 kB max request body limit
-        .with_state(pool.clone());
-
-    // Check the database for expired links every second
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            // Check the db and remove all links that are past expire time
-            sqlx::query!("DELETE FROM links WHERE created_at < (NOW() - INTERVAL '5 MINUTE')")
-                .execute(&pool)
-                .await
-                .ok();
-        }
-    });
+        .with_state(client);
 
     Ok(router.into())
 }
@@ -56,71 +33,52 @@ async fn axum(
 #[derive(Debug, Serialize, Deserialize)]
 struct CreateLinkBody {
     data: String,
-    encrypted: bool,
 }
 
 async fn create_link(
-    State(pool): State<sqlx::PgPool>,
+    State(mut client): State<redis::Client>,
     Json(body): Json<CreateLinkBody>,
 ) -> AppResult<impl IntoResponse> {
     // Create a random id in base64
     let id = nanoid::nanoid!(6);
-
-    sqlx::query!(
-        "INSERT INTO links(id, data, encrypted) values ($1, $2, $3)",
-        id.clone(),
-        body.data,
-        body.encrypted
-    )
-    .execute(&pool)
-    .await?;
+    let _: () = client.set_ex(&id, body.data, 5 * 60)?; // Expire after 5 minutes
 
     Ok((StatusCode::OK, id))
 }
 
 async fn delete_link(
-    State(pool): State<sqlx::PgPool>,
+    State(mut client): State<redis::Client>,
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
-    let result = sqlx::query!("DELETE FROM links WHERE id=$1", id)
-        .execute(&pool)
-        .await?;
+    let result: redis::RedisResult<()> = client.del(id);
 
-    match result.rows_affected() {
-        0 => Ok(StatusCode::NOT_FOUND),
-        _ => Ok(StatusCode::NO_CONTENT),
+    match result.is_ok() {
+        false => Ok(StatusCode::NOT_FOUND),
+        true => Ok(StatusCode::NO_CONTENT),
     }
 }
 
 // Get data from the link and deletes it
 async fn get_data_view(
-    State(pool): State<sqlx::PgPool>,
+    State(mut client): State<redis::Client>,
     Path(id): Path<String>,
 ) -> AppResult<impl IntoResponse> {
     let view_html = include_str!("view.html");
 
-    let result = sqlx::query_as!(
-        Link,
-        "SELECT NOW() - created_at AS age,encrypted,data FROM links WHERE id=$1",
-        id
-    )
-    .fetch_optional(&pool)
-    .await?;
+    let (data, seconds_till_expire): (Option<String>, u64) =
+        redis::pipe().get(&id).ttl(&id).query(&mut client)?;
 
-    match result {
-        Some(link) => {
-            let age_secs = link.age.microseconds / 1000000;
-
-            let html = view_html
-                .replace("%DATA%", &link.data)
-                .replace("%ENCRYPTED%", &link.encrypted.to_string())
-                .replace("%AGE%", &age_secs.to_string());
-            Ok((StatusCode::OK, Html(html)))
-        }
-        None => Ok((
+    if let Some(data) = data {
+        let html = view_html
+            .replace("%DATA%", &data)
+            .replace("%TTL%", &seconds_till_expire.to_string());
+        Ok((StatusCode::OK, cached_header!("text/html"), Html(html)))
+    } else {
+        Ok((
             StatusCode::NOT_FOUND,
+            cached_header!("text/html"),
             Html(include_str!("static/not-found.html").to_owned()),
-        )),
+        ))
     }
 }
 
@@ -154,14 +112,19 @@ where
 #[macro_export]
 macro_rules! static_route {
     ( $file:expr, $ext:expr ) => {{
-        get(|| async {
-            (
-                [
-                    (header::CONTENT_TYPE, concat!("text/", $ext)),
-                    (header::CACHE_CONTROL, "public,max-age=31536000,immutable"),
-                ],
-                include_str!(concat!("static/", $file, ".", $ext)),
-            )
-        })
+        get((
+            cached_header!(concat!("text/", $ext)),
+            include_str!(concat!("static/", $file, ".", $ext)),
+        ))
     }};
+}
+
+#[macro_export]
+macro_rules! cached_header {
+    ($content_type: expr) => {
+        [
+            (header::CONTENT_TYPE, $content_type),
+            (header::CACHE_CONTROL, "public,max-age=31536000,immutable"),
+        ]
+    };
 }

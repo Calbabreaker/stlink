@@ -30,10 +30,11 @@
             const decryptForm = document.getElementById("decrypt-form");
             const errorElm = document.getElementById("error");
             const ageElm = document.getElementById("age");
-            const rawData = dataSpan.textContent;
+            let rawData = dataSpan.textContent;
 
             // string in %% below gets string replaced on the server as a boolean
-            if (%ENCRYPTED%) {
+            if (rawData.startsWith("ENCRYPTED:")) {
+                rawData = rawData.replace("ENCRYPTED:", "");
                 dataWrapperElm.style.display = "none";
                 decryptForm.style.display = "flex";
             }
@@ -42,6 +43,7 @@
                 e.preventDefault();
                 const password = decryptForm.elements["password"].value;
                 const decryptedData = await decryptWithPassword(rawData, password);
+            console.log(decryptedData.length)
                 if (decryptedData === null) {
                     errorElm.textContent = "Failed to decrypt! Wrong password?";
                     return;
@@ -64,17 +66,17 @@
                 }
             }
 
-            let ageSeconds = %AGE%;
+            let secondsTillExpire = %TTL%;
 
             function showAge() {
-                const minutes = Math.floor(ageSeconds / 60);
+                const minutes = Math.floor(secondsTillExpire / 60);
                 const minutesStr = minutes > 0 ? `${minutes}m` : "";
-                ageElm.textContent = `Created ${minutesStr} ${ageSeconds % 60}s ago`;
+                ageElm.textContent = `Expire in ${minutesStr} ${secondsTillExpire % 60}s`;
             }
 
             showAge();
             setInterval(() => {
-                ageSeconds++;
+                secondsTillExpire--;
                 showAge();
             }, 1000);
         </script>

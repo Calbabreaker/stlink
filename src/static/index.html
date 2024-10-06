@@ -38,10 +38,16 @@
                 const password = linkForm.elements["password"].value;
                 const shouldEncrypt = Boolean(password);
 
-                if (!content) return;
-                if (content.length > 4000) return alert("Content too long.");
+                if (!content) {
+                    return;
+                }
+
+                if (content.length > 4000) {
+                    return alert("Content too long.");
+                }
 
                 let data = content;
+
                 if (shouldEncrypt) {
                     if (password.length < 8) {
                         return alert("Choose a password longer than 8 characters.");
@@ -50,6 +56,7 @@
                     }
 
                     data = await encryptWithPassword(content, password);
+                    data = `ENCRYPTED:${data}`; // Add encrypted header
                 } else {
                     // prettier-ignore
                     if (!confirm("It is recommended to set an encryption password so that the content will be secured. Do you want to continue without a password?")) {
@@ -58,7 +65,7 @@
                 }
 
                 try {
-                    const id = await tryFetch("/", "POST", { data, encrypted: shouldEncrypt });
+                    const id = await tryFetch("/", "POST", { data });
                     const outUrl = `${location.protocol}//${location.host}/${id}`;
                     linkUrl.textContent = outUrl;
                     linkUrl.href = outUrl;
