@@ -43,7 +43,6 @@
                 e.preventDefault();
                 const password = decryptForm.elements["password"].value;
                 const decryptedData = await decryptWithPassword(rawData, password);
-            console.log(decryptedData.length)
                 if (decryptedData === null) {
                     errorElm.textContent = "Failed to decrypt! Wrong password?";
                     return;

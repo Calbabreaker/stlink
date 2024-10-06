@@ -36,7 +36,7 @@ async fn axum(
     let governor_conf = std::sync::Arc::new(
         GovernorConfigBuilder::default()
             .per_second(10) // replenish every interval
-            .burst_size(6)
+            .burst_size(4)
             .finish()
             .unwrap(),
     );
@@ -48,19 +48,19 @@ async fn axum(
         governor_limiter.retain_recent();
     });
 
-    let file_router = Router::new()
-        .route("/script.js", static_route!("script", "js"))
-        .route("/style.css", static_route!("style", "css"))
-        .route("/", static_route!("index", "html"));
-
-    let router = Router::new()
-        .merge(file_router)
+    let api_router = Router::new()
         .route("/", post(create_link))
         .route("/:id", get(get_data_view).delete(delete_link))
-        .layer(DefaultBodyLimit::max(5 * 1024)) // 5 kB max request body limit
         .layer(GovernorLayer {
             config: governor_conf,
-        })
+        });
+
+    let router = Router::new()
+        .route("/script.js", static_route!("script", "js"))
+        .route("/style.css", static_route!("style", "css"))
+        .route("/", static_route!("index", "html"))
+        .merge(api_router)
+        .layer(DefaultBodyLimit::max(5 * 1024)) // 5 kB max request body limit
         .with_state(client);
 
     Ok(AxumService(router))
