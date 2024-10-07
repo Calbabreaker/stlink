@@ -1,6 +1,8 @@
+use std::{collections::HashSet, sync::LazyLock};
+
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
-    http::{header, StatusCode},
+    http::{header, HeaderName, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -8,6 +10,8 @@ use axum::{
 use redis::Commands;
 use serde::{Deserialize, Serialize};
 use tower_governor::governor::GovernorConfigBuilder;
+
+const LINK_LENGTH: usize = 5;
 
 pub struct AxumService(pub axum::Router);
 
@@ -78,7 +82,7 @@ async fn create_link(
     Json(body): Json<CreateLinkBody>,
 ) -> AppResult<impl IntoResponse> {
     // Create a random id in base64
-    let id = nanoid::nanoid!(6);
+    let id = nanoid::nanoid!(LINK_LENGTH);
     let _: () = client.set_ex(&id, body.data, 5 * 60)?; // Expire after 5 minutes
 
     Ok((StatusCode::OK, id))
@@ -101,23 +105,31 @@ async fn get_data_view(
     State(mut client): State<redis::Client>,
     Path(id): Path<String>,
 ) -> AppResult<impl IntoResponse> {
-    let view_html = include_str!("view.html");
+    // Check if request path is in the id format to prevent ranodm request from using the api
+    static CHARS: LazyLock<HashSet<char>> = LazyLock::new(|| nanoid::alphabet::SAFE.into());
+    if id.len() != LINK_LENGTH || !id.chars().all(|char| CHARS.contains(&char)) {
+        return Ok(not_found_page_response());
+    }
 
     let (data, seconds_till_expire): (Option<String>, u64) =
         redis::pipe().get(&id).ttl(&id).query(&mut client)?;
 
     if let Some(data) = data {
-        let html = view_html
+        let html = include_str!("view.html")
             .replace("%DATA%", &data)
             .replace("%TTL%", &seconds_till_expire.to_string());
         Ok((StatusCode::OK, cached_header!("text/html"), Html(html)))
     } else {
-        Ok((
-            StatusCode::NOT_FOUND,
-            cached_header!("text/html"),
-            Html(include_str!("static/not-found.html").to_owned()),
-        ))
+        Ok(not_found_page_response())
     }
+}
+
+fn not_found_page_response<'a>() -> (StatusCode, [(HeaderName, &'a str); 2], Html<String>) {
+    (
+        StatusCode::NOT_FOUND,
+        cached_header!("text/html"),
+        Html(include_str!("static/not-found.html").to_owned()),
+    )
 }
 
 // Make our own error that wraps `anyhow::Error`.
