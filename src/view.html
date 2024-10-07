@@ -32,7 +32,6 @@
             const ageElm = document.getElementById("age");
             let rawData = dataSpan.textContent;
 
-            // string in %% below gets string replaced on the server as a boolean
             if (rawData.startsWith("ENCRYPTED:")) {
                 rawData = rawData.replace("ENCRYPTED:", "");
                 dataWrapperElm.style.display = "none";
@@ -65,7 +64,8 @@
                 }
             }
 
-            let secondsTillExpire = %TTL%;
+            // string in %% below gets string replaced on the server as a boolean
+            let secondsTillExpire = %EXPIRE_SECS%;
 
             function showAge() {
                 const minutes = Math.floor(secondsTillExpire / 60);
