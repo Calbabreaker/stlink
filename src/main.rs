@@ -6,7 +6,7 @@ use std::{
 
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
-    http::{header, StatusCode},
+    http::{header, HeaderName, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -35,14 +35,14 @@ async fn axum() -> Result<shuttle_axum::AxumService, shuttle_runtime::Error> {
 
     let api_router = Router::new()
         .route("/", post(create_link))
-        .route("/:id", get(get_data_view).delete(delete_link));
+        .route("/:id", get(get_link_view).delete(delete_link));
 
     let router = Router::new()
         .route("/script.js", static_route!("script", "js"))
         .route("/style.css", static_route!("style", "css"))
         .route("/", static_route!("index", "html"))
         .merge(api_router)
-        .layer(DefaultBodyLimit::max(5 * 1024)) // 5 kB max request body limit
+        .layer(DefaultBodyLimit::max(5 * 1024)) // 5 KiB max request body limit
         .with_state(store);
 
     Ok(router.into())
@@ -65,7 +65,7 @@ async fn create_link(
         store.remove(&key);
     }
 
-    // Make sure id does not already exist
+    // Make sure id generated is unique
     let mut id = nanoid::nanoid!(LINK_LENGTH);
     while store.contains_key(&id) {
         id = nanoid::nanoid!(LINK_LENGTH);
@@ -95,10 +95,14 @@ async fn delete_link(
 }
 
 // Get data from the link and deletes it
-async fn get_data_view(
+async fn get_link_view(
     State(store): State<LinkStore>,
     Path(id): Path<String>,
 ) -> AppResult<impl IntoResponse> {
+    if id.len() != LINK_LENGTH {
+        return Ok(not_found_page());
+    }
+
     let store = store.read().await;
 
     if let Some(link) = store.get(&id) {
@@ -108,12 +112,20 @@ async fn get_data_view(
             .replace("%EXPIRE_SECS%", &expire_secs.to_string());
         Ok((StatusCode::OK, cached_header!("text/html", 0), Html(html)))
     } else {
-        Ok((
-            StatusCode::NOT_FOUND,
-            cached_header!("text/html", 31536000),
-            Html(include_str!("static/not-found.html").to_owned()),
-        ))
+        Ok(not_found_page())
     }
+}
+
+fn not_found_page() -> (
+    StatusCode,
+    [(HeaderName, &'static str); 2],
+    Html<std::string::String>,
+) {
+    (
+        StatusCode::NOT_FOUND,
+        cached_header!("text/html", 31536000),
+        Html(include_str!("static/not-found.html").to_owned()),
+    )
 }
 
 fn cleanup_task(store: LinkStore) {
@@ -138,9 +150,13 @@ type AppResult<T> = Result<T, AppError>;
 // Tell axum how to convert `AppError` into a response.
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        eprintln!("Server error: {:?}", self.0);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {}", self.0),
+            #[cfg(debug_assertions)]
+            format!("Something went wrong: {:?}", self.0),
+            #[cfg(not(debug_assertions))]
+            format!("Something went wrong :("),
         )
             .into_response()
     }

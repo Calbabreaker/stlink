@@ -70,7 +70,7 @@
             function showAge() {
                 const minutes = Math.floor(secondsTillExpire / 60);
                 const minutesStr = minutes > 0 ? `${minutes}m` : "";
-                ageElm.textContent = `Expire in ${minutesStr} ${secondsTillExpire % 60}s`;
+                ageElm.textContent = `Expires in ${minutesStr} ${secondsTillExpire % 60}s`;
             }
 
             showAge();
