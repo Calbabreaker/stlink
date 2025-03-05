@@ -1,0 +1,4 @@
+# Disallow everything except for /
+User-agent: *
+Disallow: /
+Allow: /$

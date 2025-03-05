@@ -41,6 +41,7 @@ async fn axum() -> Result<shuttle_axum::AxumService, shuttle_runtime::Error> {
         .route("/script.js", static_route!("script", "js"))
         .route("/style.css", static_route!("style", "css"))
         .route("/", static_route!("index", "html"))
+        .route("/robots.txt", static_route!("robots", "txt"))
         .merge(api_router)
         .layer(DefaultBodyLimit::max(5 * 1024)) // 5 KiB max request body limit
         .with_state(store);
